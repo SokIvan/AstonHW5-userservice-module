@@ -7,11 +7,19 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.hateoas.CollectionModel;
+import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.Link;
+import org.springframework.hateoas.server.mvc.WebMvcLinkBuilder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
+
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
 @RestController
 @RequestMapping("/api/users")
@@ -23,32 +31,67 @@ public class UserController {
 
     @PostMapping
     @Operation(summary = "Create a new user")
-    public ResponseEntity<UserResponse> createUser(@Valid @RequestBody UserRequest userRequest) {
+    public ResponseEntity<EntityModel<UserResponse>> createUser(@Valid @RequestBody UserRequest userRequest) {
         UserResponse user = userService.createUser(userRequest);
-        return ResponseEntity.status(HttpStatus.CREATED).body(user);
+
+        EntityModel<UserResponse> resource = EntityModel.of(user);
+        resource.add(linkTo(methodOn(UserController.class).getUserById(user.getId())).withSelfRel());
+        resource.add(linkTo(methodOn(UserController.class).updateUser(user.getId(), userRequest)).withRel("update"));
+        resource.add(linkTo(methodOn(UserController.class).deleteUser(user.getId())).withRel("delete"));
+        resource.add(linkTo(methodOn(UserController.class).getAllUsers()).withRel("all-users"));
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(resource);
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get user by ID")
-    public ResponseEntity<UserResponse> getUserById(@PathVariable Long id) {
+    public ResponseEntity<EntityModel<UserResponse>> getUserById(@PathVariable Long id) {
         UserResponse user = userService.getUserById(id);
-        return ResponseEntity.ok(user);
+
+        EntityModel<UserResponse> resource = EntityModel.of(user);
+        resource.add(linkTo(methodOn(UserController.class).getUserById(id)).withSelfRel());
+        resource.add(linkTo(methodOn(UserController.class).updateUser(id, null)).withRel("update"));
+        resource.add(linkTo(methodOn(UserController.class).deleteUser(id)).withRel("delete"));
+        resource.add(linkTo(methodOn(UserController.class).getAllUsers()).withRel("all-users"));
+        resource.add(linkTo(methodOn(UserController.class).createUser(null)).withRel("create-user"));
+
+        return ResponseEntity.ok(resource);
     }
 
     @GetMapping
     @Operation(summary = "Get all users")
-    public ResponseEntity<List<UserResponse>> getAllUsers() {
+    public ResponseEntity<CollectionModel<EntityModel<UserResponse>>> getAllUsers() {
         List<UserResponse> users = userService.getAllUsers();
-        return ResponseEntity.ok(users);
+
+        List<EntityModel<UserResponse>> userResources = users.stream()
+                .map(user -> {
+                    EntityModel<UserResponse> resource = EntityModel.of(user);
+                    resource.add(linkTo(methodOn(UserController.class).getUserById(user.getId())).withSelfRel());
+                    return resource;
+                })
+                .collect(Collectors.toList());
+
+        CollectionModel<EntityModel<UserResponse>> resources = CollectionModel.of(userResources);
+        resources.add(linkTo(methodOn(UserController.class).getAllUsers()).withSelfRel());
+        resources.add(linkTo(methodOn(UserController.class).createUser(null)).withRel("create-user"));
+
+        return ResponseEntity.ok(resources);
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Update user by ID")
-    public ResponseEntity<UserResponse> updateUser(
+    public ResponseEntity<EntityModel<UserResponse>> updateUser(
             @PathVariable Long id,
             @Valid @RequestBody UserRequest userRequest) {
         UserResponse user = userService.updateUser(id, userRequest);
-        return ResponseEntity.ok(user);
+
+        EntityModel<UserResponse> resource = EntityModel.of(user);
+        resource.add(linkTo(methodOn(UserController.class).getUserById(id)).withSelfRel());
+        resource.add(linkTo(methodOn(UserController.class).updateUser(id, userRequest)).withRel("update"));
+        resource.add(linkTo(methodOn(UserController.class).deleteUser(id)).withRel("delete"));
+        resource.add(linkTo(methodOn(UserController.class).getAllUsers()).withRel("all-users"));
+
+        return ResponseEntity.ok(resource);
     }
 
     @DeleteMapping("/{id}")
